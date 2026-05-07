@@ -1,6 +1,7 @@
 [workspace]
-members = ["crates/pet-engine", "crates/pet-tui"]
+members = ["crates/pet-engine", "crates/pet-tui", "crates/pet-overlay", "crates/pet-sync"]
 resolver = "2"
+
 
 
 
