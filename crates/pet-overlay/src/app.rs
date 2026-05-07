@@ -1,9 +1,9 @@
 //! Pet Overlay - Iced GUI application for open-pets desktop companion
-//! Phase 4: Interactive pet overlay with context menu, status panel,
-//! click interactions, speech bubbles, and reaction mode configuration.
+//! Phase 5: Window dragging, position persistence, SQLite storage.
 
 use iced::alignment::Horizontal;
 use iced::widget::{button, column, container, image, row, text, MouseArea};
+use iced::window;
 use iced::{Task, Element, Length, Background, Color, border};
 use pet_engine::{Engine, PetState, ReactionMode};
 use pet_sync::reaction_pipeline::ReactionPipeline;
@@ -22,7 +22,7 @@ enum Screen {
 }
 
 /// The main application state
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PetApp {
     pub pet: PetState,
     pub animation_frame: u32,
@@ -32,6 +32,9 @@ pub struct PetApp {
     pub running: bool,
     sprites: HashMap<String, Vec<image::Handle>>,
     asset_dir: PathBuf,
+    is_dragging: bool,
+    db: crate::db::PetDb,
+    window_id: Option<window::Id>,
     #[allow(dead_code)]
     session_tracker: SessionTracker,
     reaction_pipeline: ReactionPipeline,
@@ -41,7 +44,9 @@ pub struct PetApp {
 pub enum Message {
     Tick,
     Exit,
-    PetClicked,
+    PetPressed,
+    DragWindow,
+    WindowIdLoaded(window::Id),
     ShowStatus,
     HideStatus,
     ToggleMute,
@@ -68,6 +73,14 @@ impl PetApp {
 
     pub fn new() -> (Self, Task<Message>) {
         let pet = Engine::hatch("desktop-overlay-default-seed");
+
+        // Try to open database; if it fails, continue with in-memory state
+        let db = crate::db::PetDb::open().unwrap_or_else(|e| {
+            log::warn!("Failed to open database: {}, using fresh state", e);
+            // Create in-memory fallback — won't persist but won't crash
+            crate::db::PetDb::open_in_memory().expect("in-memory SQLite should always work")
+        });
+
         let app = Self {
             pet,
             animation_frame: 0,
@@ -77,27 +90,38 @@ impl PetApp {
             running: true,
             sprites: HashMap::new(),
             asset_dir: Self::default_asset_dir(),
+            is_dragging: false,
+            db,
+            window_id: None,
             session_tracker: SessionTracker::new(),
             reaction_pipeline: ReactionPipeline::from_config(ReactionMode::Cheerleader),
         };
 
-        let task = Task::perform(
-            Self::load_sprites(app.asset_dir.clone()),
-            |result| match result {
-                Ok(sprites) => Message::SpriteFramesLoaded(sprites),
-                Err(_) => Message::SpriteFramesLoaded(HashMap::new()),
-            },
-        );
+        // Fetch window ID and load sprites in parallel
+        let task = Task::batch(vec![
+            Task::perform(
+                Self::load_sprites(app.asset_dir.clone()),
+                |result| match result {
+                    Ok(sprites) => Message::SpriteFramesLoaded(sprites),
+                    Err(_) => Message::SpriteFramesLoaded(HashMap::new()),
+                },
+            ),
+            window::get_oldest().then(|id_opt| {
+                match id_opt {
+                    Some(id) => Task::done(Message::WindowIdLoaded(id)),
+                    None => Task::none(),
+                }
+            }),
+        ]);
 
         (app, task)
     }
 
     fn default_asset_dir() -> PathBuf {
-        if let Ok(up) = std::env::var("USERPROFILE") {
-            PathBuf::from(up).join(".open-pets").join("sprites")
-        } else {
-            PathBuf::from("./.open-pets/sprites")
-        }
+        dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("open-pets")
+            .join("sprites")
     }
 
     async fn load_sprites(asset_dir: PathBuf) -> Result<HashMap<String, Vec<image::Handle>>, ()> {
@@ -148,7 +172,6 @@ impl PetApp {
         ) {
             self.show_speech(reaction.text);
         } else {
-            // No reaction (mode is None or cooldown active) — show minimal feedback
             self.show_speech(if success { "✓ Task done" } else { "✗ Task failed" });
         }
 
@@ -176,14 +199,8 @@ impl PetApp {
     }
 
     fn save_state(&self) {
-        if let Ok(up) = std::env::var("USERPROFILE") {
-            let sf = PathBuf::from(up).join(".open-pets").join("state.json");
-            if let Some(parent) = sf.parent() {
-                fs::create_dir_all(parent).ok();
-            }
-            if let Ok(json) = serde_json::to_string_pretty(&self.pet) {
-                fs::write(&sf, json).ok();
-            }
+        if let Err(e) = self.db.save_pet(&self.pet) {
+            log::warn!("Failed to save pet to database: {}", e);
         }
     }
 
@@ -196,15 +213,19 @@ impl PetApp {
                 }
                 Task::none()
             }
-            Message::Exit => iced::exit(),
-            Message::PetClicked => {
+            Message::Exit => {
+                if let Err(e) = state.db.save_pet(&state.pet) {
+                    log::warn!("Failed to save on exit: {}", e);
+                }
+                iced::exit()
+            }
+            Message::PetPressed => {
                 state.pet.mood = if state.pet.mood != "happy" {
                     "happy".to_string()
                 } else {
                     "content".to_string()
                 };
                 let xp = Engine::award_xp(&mut state.pet, 5, "petting");
-                // Show level-up message if applicable
                 if let Some(event) = xp.first() {
                     if matches!(event.event_type, pet_engine::EventType::LevelUp) {
                         state.show_speech(format!("🎉 Level Up! Now Lvl {}!", state.pet.level));
@@ -215,6 +236,19 @@ impl PetApp {
                     state.show_speech(format!("{} loves you! +5xp", state.pet.species_name));
                 }
                 state.save_state();
+                Task::none()
+            }
+            Message::DragWindow => {
+                state.is_dragging = true;
+                if let Some(id) = state.window_id {
+                    window::drag(id)
+                } else {
+                    Task::none()
+                }
+            }
+            Message::WindowIdLoaded(id) => {
+                state.window_id = Some(id);
+                log::info!("Window ID loaded: {}", id);
                 Task::none()
             }
             Message::ShowStatus => {
@@ -274,7 +308,7 @@ impl PetApp {
             }
         }
 
-        // Emoji fallback mode — clickable pet area
+        // Emoji fallback mode
         let pet_emoji = match self.pet.species_id.as_str() {
             "void-cat" => "🐱",
             "code-hound" => "🐕",
@@ -295,7 +329,7 @@ impl PetApp {
 
         let xp_needed = pet_engine::total_xp_for_level(self.pet.level + 1);
 
-        // Pet display — clickable via MouseArea
+        // Pet display
         let pet_display = column![
             text(format!("{}", pet_emoji))
                 .size(48).align_x(Horizontal::Center),
@@ -313,17 +347,17 @@ impl PetApp {
         .align_x(iced::Alignment::Center)
         .spacing(2);
 
-        // Wrap pet in clickable MouseArea
-        let clickable_pet = MouseArea::new(pet_display)
-            .on_press(Message::PetClicked);
+        // Pet display — left-press to drag window
+        let draggable_pet = MouseArea::new(pet_display)
+            .on_press(Message::DragWindow);
 
         let inner = if let Some(speech) = &self.speech_bubble {
             column![
                 make_speech_bubble(speech),
-                clickable_pet
+                draggable_pet
             ].spacing(4).align_x(iced::Alignment::Center)
         } else {
-            column![clickable_pet].align_x(iced::Alignment::Center)
+            column![draggable_pet].align_x(iced::Alignment::Center)
         };
 
         // Reaction mode indicator
@@ -334,15 +368,15 @@ impl PetApp {
             ReactionMode::None => "🔇",
         };
 
-        // Action buttons row 1: pet management
+        // Action buttons row 1
         let row1 = row![
+            button(text("🐾").size(10)).on_press(Message::PetPressed).width(Length::FillPortion(1)),
             button(text("📊").size(10)).on_press(Message::ShowStatus).width(Length::FillPortion(1)),
-            button(text("🔊").size(10)).on_press(Message::ToggleMute).width(Length::FillPortion(1)),
             button(text(mode_label).size(10)).on_press(Message::CycleReactionMode).width(Length::FillPortion(1)),
             button(text("✕").size(10)).on_press(Message::Exit).width(Length::FillPortion(1)),
         ].spacing(2).width(Length::Fill);
 
-        // Action buttons row 2: simulate OpenCode tasks (dev/test only)
+        // Action buttons row 2: simulate OpenCode tasks
         let row2 = row![
             button(text("✅ OK").size(8)).on_press(Message::SimulateTask(true)).width(Length::FillPortion(1)),
             button(text("❌ Fail").size(8)).on_press(Message::SimulateTask(false)).width(Length::FillPortion(1)),
