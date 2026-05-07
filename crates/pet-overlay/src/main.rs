@@ -1,6 +1,7 @@
 //! Pet Overlay - Iced GUI application for open-pets desktop companion
 
 mod app;
+mod status_panel;
 
 pub fn main() -> iced::Result {
     // Initialize logging

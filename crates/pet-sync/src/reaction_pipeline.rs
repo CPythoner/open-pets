@@ -2,6 +2,7 @@ use pet_engine::Reaction;
 use pet_engine::{generate_reaction, ReactionMode, TaskSummary, PetState};
 
 /// The reaction pipeline connects OpenCode state changes to pet reactions.
+#[derive(Debug, Clone)]
 pub struct ReactionPipeline {
     mode: ReactionMode,
     cooldown_secs: u64,

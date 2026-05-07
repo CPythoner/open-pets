@@ -2,6 +2,7 @@ use super::opencode_state::{OpenCodeState, AgentState, StateChange};
 use pet_engine::TaskSummary;
 
 /// Tracks multiple OpenCode sessions and detects state changes.
+#[derive(Debug, Clone)]
 pub struct SessionTracker {
     sessions: std::collections::HashMap<String, OpenCodeState>,
     previous_states: std::collections::HashMap<String, AgentState>,
