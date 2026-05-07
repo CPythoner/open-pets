@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/pet-engine"]
+resolver = "2"
