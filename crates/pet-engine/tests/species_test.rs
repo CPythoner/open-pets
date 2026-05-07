@@ -1,4 +1,4 @@
-use pet_engine::{Engine, SPECIES_TABLE, RarityTier};
+use pet_engine::{Engine, RarityTier, SPECIES_TABLE};
 
 #[test]
 fn test_species_table_has_entries() {
@@ -8,7 +8,9 @@ fn test_species_table_has_entries() {
 #[test]
 fn test_all_rarity_tiers_present() {
     assert!(SPECIES_TABLE.iter().any(|s| s.rarity == RarityTier::Common));
-    assert!(SPECIES_TABLE.iter().any(|s| s.rarity == RarityTier::Uncommon));
+    assert!(SPECIES_TABLE
+        .iter()
+        .any(|s| s.rarity == RarityTier::Uncommon));
     assert!(SPECIES_TABLE.iter().any(|s| s.rarity == RarityTier::Rare));
     assert!(SPECIES_TABLE.iter().any(|s| s.rarity == RarityTier::Epic));
 }

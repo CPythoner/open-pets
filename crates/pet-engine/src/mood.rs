@@ -1,5 +1,5 @@
-use chrono::Utc;
 use crate::species::PetState;
+use chrono::Utc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MoodState {
@@ -32,7 +32,10 @@ impl MoodState {
     }
 
     pub fn is_positive(&self) -> bool {
-        matches!(self, MoodState::Happy | MoodState::Content | MoodState::Curious)
+        matches!(
+            self,
+            MoodState::Happy | MoodState::Content | MoodState::Curious
+        )
     }
 }
 

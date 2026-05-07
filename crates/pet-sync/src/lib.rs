@@ -2,12 +2,12 @@
 //!
 //! Monitors OpenCode session state and triggers contextual pet reactions.
 
-mod opencode_state;
-pub mod session_tracker;
 mod config;
+mod opencode_state;
 pub mod reaction_pipeline;
+pub mod session_tracker;
 
-pub use opencode_state::{AgentState, StateChange, OpenCodeState};
-pub use session_tracker::SessionTracker;
 pub use config::SyncConfig;
+pub use opencode_state::{AgentState, OpenCodeState, StateChange};
 pub use reaction_pipeline::ReactionPipeline;
+pub use session_tracker::SessionTracker;

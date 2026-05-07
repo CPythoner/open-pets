@@ -1,5 +1,5 @@
 use pet_engine::Reaction;
-use pet_engine::{generate_reaction, ReactionMode, TaskSummary, PetState};
+use pet_engine::{generate_reaction, PetState, ReactionMode, TaskSummary};
 
 /// The reaction pipeline connects OpenCode state changes to pet reactions.
 #[derive(Debug, Clone)]
@@ -24,29 +24,19 @@ impl ReactionPipeline {
     }
 
     /// Process a state change and optionally return a pet reaction.
-    pub fn process(
-        &mut self,
-        pet: &mut PetState,
-        change: super::StateChange,
-    ) -> Option<Reaction> {
-        // Check cooldown
-        if let Some(last) = self.last_reaction {
-            let elapsed = chrono::Utc::now().signed_duration_since(last);
-            if elapsed.num_seconds() < self.cooldown_secs as i64 {
-                return None;
-            }
-        }
-
-        // Only react to task completion events
+    pub fn process(&mut self, pet: &mut PetState, change: super::StateChange) -> Option<Reaction> {
         match &change {
             super::StateChange::TaskCompleted { summary } => {
+                pet_engine::Engine::award_xp(pet, 50, &format!("task:{}", summary.task_name));
+                pet_engine::Engine::update_mood(pet, summary.success, summary.error_count);
+
+                if self.is_on_cooldown() {
+                    return None;
+                }
+
                 let reaction = generate_reaction(pet, summary, &self.mode);
                 if reaction.is_some() {
                     self.last_reaction = Some(chrono::Utc::now());
-                    // Award XP for the task
-                    pet_engine::Engine::award_xp(pet, 50, &format!("task:{}", summary.task_name));
-                    // Update mood based on success/errors
-                    pet_engine::Engine::update_mood(pet, summary.success, summary.error_count);
                 }
                 reaction
             }
@@ -55,19 +45,29 @@ impl ReactionPipeline {
                 None
             }
             super::StateChange::Error { message } => {
-                let summary = TaskSummary::new(
-                    &format!("error: {}", message),
-                    false,
-                    1,
-                );
+                pet_engine::Engine::award_xp(pet, 10, &format!("error:{}", message));
+                pet_engine::Engine::update_mood(pet, false, 1);
+
+                if self.is_on_cooldown() {
+                    return None;
+                }
+
+                let summary = TaskSummary::new(&format!("error: {}", message), false, 1);
                 let reaction = generate_reaction(pet, &summary, &self.mode);
                 if reaction.is_some() {
                     self.last_reaction = Some(chrono::Utc::now());
-                    pet_engine::Engine::award_xp(pet, 10, &format!("error:{}", message));
-                    pet_engine::Engine::update_mood(pet, false, 1);
                 }
                 reaction
             }
+        }
+    }
+
+    fn is_on_cooldown(&self) -> bool {
+        if let Some(last) = self.last_reaction {
+            let elapsed = chrono::Utc::now().signed_duration_since(last);
+            elapsed.num_seconds() < self.cooldown_secs as i64
+        } else {
+            false
         }
     }
 

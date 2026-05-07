@@ -1,4 +1,4 @@
-use super::opencode_state::{OpenCodeState, AgentState, StateChange};
+use super::opencode_state::{AgentState, OpenCodeState, StateChange};
 use pet_engine::TaskSummary;
 
 /// Tracks multiple OpenCode sessions and detects state changes.
@@ -43,7 +43,8 @@ impl SessionTracker {
         let mut changes = Vec::new();
 
         // Store current state
-        self.sessions.insert(session_id.to_string(), new_state.clone());
+        self.sessions
+            .insert(session_id.to_string(), new_state.clone());
 
         // Check for state transitions
         if let Some(prev_state) = self.previous_states.get(session_id) {
@@ -55,17 +56,16 @@ impl SessionTracker {
 
                 // Running → Idle transition means task completion
                 if matches!(prev_state, AgentState::Running)
-                   && matches!(new_state.agent_state, AgentState::Idle)
+                    && matches!(new_state.agent_state, AgentState::Idle)
                 {
-                    let task_name = new_state.current_task.clone()
+                    let task_name = new_state
+                        .current_task
+                        .clone()
                         .unwrap_or_else(|| "unknown_task".to_string());
 
                     if new_state.error_count > 0 {
                         changes.push(StateChange::Error {
-                            message: format!(
-                                "{} errors in {}",
-                                new_state.error_count, task_name
-                            ),
+                            message: format!("{} errors in {}", new_state.error_count, task_name),
                         });
                     }
 

@@ -68,6 +68,16 @@ impl MemoryStore {
         self.memories.last().unwrap()
     }
 
+    /// Insert a memory loaded from persistent storage while preserving metadata.
+    pub fn insert_existing(&mut self, mut memory: Memory) {
+        if memory.id == 0 {
+            memory.id = self.next_id;
+        }
+        memory.importance = memory.importance.min(10);
+        self.next_id = self.next_id.max(memory.id + 1);
+        self.memories.push(memory);
+    }
+
     /// Get all memories, sorted by importance (descending) then by recency.
     pub fn all(&self) -> Vec<&Memory> {
         let mut refs: Vec<&Memory> = self.memories.iter().collect();
@@ -88,18 +98,12 @@ impl MemoryStore {
 
     /// Get only consolidated (long-term) memories.
     pub fn consolidated(&self) -> Vec<&Memory> {
-        self.memories
-            .iter()
-            .filter(|m| m.consolidated)
-            .collect()
+        self.memories.iter().filter(|m| m.consolidated).collect()
     }
 
     /// Get only short-term (not consolidated) memories.
     pub fn short_term(&self) -> Vec<&Memory> {
-        self.memories
-            .iter()
-            .filter(|m| !m.consolidated)
-            .collect()
+        self.memories.iter().filter(|m| !m.consolidated).collect()
     }
 
     /// Consolidate memories: mark high-importance short-term memories as long-term,
@@ -147,7 +151,11 @@ impl MemoryStore {
 
     /// Create a memory from a task completion.
     pub fn remember_task(&mut self, task_name: &str, success: bool, error_count: u32) {
-        let importance = if success { 3 } else { 5 + (error_count.min(5)) as u8 };
+        let importance = if success {
+            3
+        } else {
+            5 + (error_count.min(5)) as u8
+        };
         let text = if success {
             format!("Task '{}' completed successfully", task_name)
         } else {
@@ -233,16 +241,28 @@ mod tests {
         let mut store = MemoryStore::new();
         // Use explicit timestamps to guarantee order
         store.memories.push(Memory {
-            id: 1, text: "oldest".to_string(), importance: 1,
-            consolidated: false, category: MemoryCategory::Interaction, created_at: 100,
+            id: 1,
+            text: "oldest".to_string(),
+            importance: 1,
+            consolidated: false,
+            category: MemoryCategory::Interaction,
+            created_at: 100,
         });
         store.memories.push(Memory {
-            id: 2, text: "middle".to_string(), importance: 1,
-            consolidated: false, category: MemoryCategory::Interaction, created_at: 200,
+            id: 2,
+            text: "middle".to_string(),
+            importance: 1,
+            consolidated: false,
+            category: MemoryCategory::Interaction,
+            created_at: 200,
         });
         store.memories.push(Memory {
-            id: 3, text: "newest".to_string(), importance: 1,
-            consolidated: false, category: MemoryCategory::Interaction, created_at: 300,
+            id: 3,
+            text: "newest".to_string(),
+            importance: 1,
+            consolidated: false,
+            category: MemoryCategory::Interaction,
+            created_at: 300,
         });
         store.next_id = 4;
 
@@ -292,7 +312,11 @@ mod tests {
         store.remember_task("deploy", false, 3);
 
         assert_eq!(store.len(), 2);
-        let task_mems: Vec<&Memory> = store.memories.iter().filter(|m| m.category == MemoryCategory::Task).collect();
+        let task_mems: Vec<&Memory> = store
+            .memories
+            .iter()
+            .filter(|m| m.category == MemoryCategory::Task)
+            .collect();
         assert_eq!(task_mems.len(), 2);
         // Failure has higher importance
         assert_eq!(task_mems[0].importance, 3); // success
@@ -311,7 +335,11 @@ mod tests {
     #[test]
     fn test_search_memories() {
         let mut store = MemoryStore::new();
-        store.add("deployed to production".to_string(), 5, MemoryCategory::Task);
+        store.add(
+            "deployed to production".to_string(),
+            5,
+            MemoryCategory::Task,
+        );
         store.add("fixed login bug".to_string(), 3, MemoryCategory::Task);
         store.add("deployed to staging".to_string(), 4, MemoryCategory::Task);
 

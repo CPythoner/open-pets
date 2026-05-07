@@ -22,7 +22,10 @@ impl Event {
         let xp_milestone = to * 10;
         Self {
             event_type: EventType::LevelUp,
-            description: format!("Leveled up from {} to {}! (+{} bonus XP)", from, to, xp_milestone),
+            description: format!(
+                "Leveled up from {} to {}! (+{} bonus XP)",
+                from, to, xp_milestone
+            ),
             xp_earned: xp_milestone,
             details: serde_json::json!({"from": from, "to": to}),
         }

@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 use pet_engine::ReactionMode;
 
@@ -22,11 +22,13 @@ impl Default for SyncConfig {
 }
 
 fn default_state_dir() -> PathBuf {
-    if let Ok(userprofile) = std::env::var("USERPROFILE") {
-        PathBuf::from(userprofile).join(".open-pets")
-    } else {
-        PathBuf::from("./.open-pets")
-    }
+    std::env::var("OPEN_PETS_HOME")
+        .map(PathBuf::from)
+        .or_else(|_| std::env::var("HOME").map(|home| PathBuf::from(home).join(".open-pets")))
+        .or_else(|_| {
+            std::env::var("USERPROFILE").map(|home| PathBuf::from(home).join(".open-pets"))
+        })
+        .unwrap_or_else(|_| PathBuf::from(".open-pets"))
 }
 
 impl SyncConfig {
@@ -73,8 +75,7 @@ impl SyncConfig {
         let content = serde_json::to_string_pretty(&raw)
             .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-        fs::write(&config_file, content)
-            .map_err(|e| format!("Failed to write config: {}", e))?;
+        fs::write(&config_file, content).map_err(|e| format!("Failed to write config: {}", e))?;
 
         Ok(())
     }

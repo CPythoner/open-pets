@@ -132,7 +132,10 @@ pub fn backseat_success_reaction(task: &TaskSummary, state: &PetState) -> Reacti
 
 pub fn encouragement_reaction(task: &TaskSummary, _state: &PetState) -> Reaction {
     Reaction {
-        text: format!("{} didn't work out, but you'll get there! Keep going!", task.task_name),
+        text: format!(
+            "{} didn't work out, but you'll get there! Keep going!",
+            task.task_name
+        ),
         mood_impact: 0,
         is_technical: false,
     }

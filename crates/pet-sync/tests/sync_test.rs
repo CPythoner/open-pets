@@ -1,6 +1,6 @@
-use pet_sync::{SessionTracker, OpenCodeState, AgentState, StateChange};
 use pet_engine::{Engine, ReactionMode};
 use pet_sync::reaction_pipeline::ReactionPipeline;
+use pet_sync::{AgentState, OpenCodeState, SessionTracker, StateChange};
 
 #[test]
 fn test_session_tracker_new() {
@@ -34,8 +34,12 @@ fn test_session_tracker_state_change_detection() {
 
     // Should detect: AgentStateChanged + TaskCompleted
     assert!(changes.len() >= 2);
-    assert!(changes.iter().any(|c| matches!(c, StateChange::AgentStateChanged { .. })));
-    assert!(changes.iter().any(|c| matches!(c, StateChange::TaskCompleted { .. })));
+    assert!(changes
+        .iter()
+        .any(|c| matches!(c, StateChange::AgentStateChanged { .. })));
+    assert!(changes
+        .iter()
+        .any(|c| matches!(c, StateChange::TaskCompleted { .. })));
 }
 
 #[test]
@@ -52,7 +56,9 @@ fn test_session_tracker_error_detection() {
     let changes = tracker.update_session("s1", error_state);
 
     // Should include Error change
-    assert!(changes.iter().any(|c| matches!(c, StateChange::Error { .. })));
+    assert!(changes
+        .iter()
+        .any(|c| matches!(c, StateChange::Error { .. })));
 }
 
 #[test]
@@ -115,11 +121,14 @@ fn test_reaction_pipeline_backseat_error() {
 fn test_reaction_pipeline_none_mode() {
     let mut pipeline = ReactionPipeline::from_config(ReactionMode::None);
     let mut pet = Engine::hatch("test-pipeline-none");
+    let initial_xp = pet.xp;
 
     let summary = pet_engine::TaskSummary::new("any_task", true, 0);
     let reaction = pipeline.process(&mut pet, StateChange::TaskCompleted { summary });
 
     assert!(reaction.is_none());
+    assert_eq!(pet.xp, initial_xp + 50);
+    assert_eq!(pet.mood, "content");
 }
 
 #[test]
@@ -136,6 +145,7 @@ fn test_reaction_pipeline_cooldown() {
     let summary2 = pet_engine::TaskSummary::new("task2", true, 0);
     let r2 = pipeline.process(&mut pet, StateChange::TaskCompleted { summary: summary2 });
     assert!(r2.is_none());
+    assert_eq!(pet.xp, 100);
 }
 
 #[test]
@@ -157,6 +167,26 @@ fn test_opencode_state_idle() {
     assert!(state.current_task.is_none());
     assert_eq!(state.error_count, 0);
     assert!(state.files_changed.is_empty());
+}
+
+#[test]
+fn test_opencode_state_parses_session_state_json() {
+    let state = OpenCodeState::from_json_str(
+        r#"{
+            "session_id": "session-42",
+            "state": "running",
+            "task": "build_overlay",
+            "error_count": 2,
+            "files_changed": ["crates/pet-overlay/src/app.rs"]
+        }"#,
+    )
+    .unwrap();
+
+    assert_eq!(state.session_id.as_deref(), Some("session-42"));
+    assert_eq!(state.agent_state, AgentState::Running);
+    assert_eq!(state.current_task.as_deref(), Some("build_overlay"));
+    assert_eq!(state.error_count, 2);
+    assert_eq!(state.files_changed, vec!["crates/pet-overlay/src/app.rs"]);
 }
 
 #[test]

@@ -23,6 +23,8 @@ open-pets/
 │   ├── pet-overlay/   # Iced GUI — floating transparent desktop window
 │   ├── pet-tui/       # Terminal companion — Bubble Tea-style TUI
 │   └── pet-sync/      # OpenCode state monitoring and reaction pipeline
+├── assets/
+│   └── sprites/       # Bundled transparent PNG pet sprites
 └── skills/
     └── pet/           # OpenCode /pet skill — interact from within OpenCode
 ```
@@ -46,6 +48,25 @@ cargo run --release -p pet-overlay
 ```bash
 cargo run --release -p pet-tui
 ```
+
+### Regenerate Sprites
+
+```bash
+python3 tools/generate_sprites.py
+```
+
+The overlay loads user sprites from your data directory first, then falls back to
+the bundled sprites in `assets/sprites`.
+
+### Build Codex-Compatible Pet
+
+```bash
+python3 tools/package_codex_pet.py --install
+```
+
+This creates a Codex custom pet package at `assets/codex/open-pets-codex` and
+installs it to `~/.codex/pets/open-pets-codex` using the Codex contract:
+`pet.json` plus a transparent `1536x1872` `spritesheet.webp` atlas.
 
 ## Usage
 
@@ -75,14 +96,33 @@ Install the `/pet` skill and use commands:
 /pet stats      → Detailed personality stats
 ```
 
+### OpenCode State File
+
+The overlay polls these files and reacts to state changes:
+
+- `<current-project>/.opencode/session-state.json`
+- `$OPEN_PETS_HOME/session-state.json` or `~/.open-pets/session-state.json`
+
+Supported JSON fields:
+
+```json
+{
+  "session_id": "default",
+  "state": "running",
+  "task": "build_overlay",
+  "error_count": 0,
+  "files_changed": ["crates/pet-overlay/src/app.rs"]
+}
+```
+
 ## Testing
 
 ```bash
-# Run all 51 tests
+# Run all 61 tests
 cargo test --workspace
 
 # Run specific crate tests
-cargo test -p pet-engine   # 37 tests (species, stats, mood, XP, reactions, memory)
+cargo test -p pet-engine   # Core logic tests (species, stats, mood, XP, reactions, memory)
 cargo test -p pet-sync     # 14 tests (session tracking, reaction pipeline)
 ```
 

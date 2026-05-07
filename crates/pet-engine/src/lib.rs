@@ -12,12 +12,12 @@ pub use event::{Event, EventType};
 pub use memory::{Memory, MemoryCategory, MemoryStore};
 pub use mood::{Mood, MoodState};
 pub use reaction::{
-    generate_reaction, backseat_error_reaction, backseat_success_reaction,
-    encouragement_reaction, Reaction, ReactionMode, TaskSummary,
+    backseat_error_reaction, backseat_success_reaction, encouragement_reaction, generate_reaction,
+    Reaction, ReactionMode, TaskSummary,
 };
 pub use species::{PetState, RarityTier, SpeciesDef, SPECIES_TABLE};
 pub use stats::PersonalityStats;
-pub use xp::{xp_to_next_level, total_xp_for_level, LevelInfo};
+pub use xp::{total_xp_for_level, xp_to_next_level, LevelInfo};
 
 /// The main entry point for pet engine operations.
 pub struct Engine;
@@ -26,7 +26,7 @@ impl Engine {
     /// Hatch a new pet from a seed string.
     /// Deterministic: same seed always produces the same pet.
     pub fn hatch(seed: &str) -> PetState {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
 
         let mut hasher = Sha256::new();
         hasher.update(seed.as_bytes());
@@ -34,9 +34,8 @@ impl Engine {
         let hash_bytes: Vec<u8> = hash.to_vec();
 
         // Determine rarity tier first
-        let rarity_roll = u32::from_be_bytes([
-            hash_bytes[0], hash_bytes[1], hash_bytes[2], hash_bytes[3],
-        ]) % 100;
+        let rarity_roll =
+            u32::from_be_bytes([hash_bytes[0], hash_bytes[1], hash_bytes[2], hash_bytes[3]]) % 100;
 
         let target_rarity = if rarity_roll < 60 {
             RarityTier::Common
@@ -62,23 +61,23 @@ impl Engine {
                 .iter()
                 .filter(|s| s.rarity == RarityTier::Common)
                 .collect();
-            let idx = u32::from_be_bytes([
-                hash_bytes[4], hash_bytes[5], hash_bytes[6], hash_bytes[7],
-            ]) as usize
-                % common.len();
+            let idx =
+                u32::from_be_bytes([hash_bytes[4], hash_bytes[5], hash_bytes[6], hash_bytes[7]])
+                    as usize
+                    % common.len();
             common[idx]
         } else {
-            let idx = u32::from_be_bytes([
-                hash_bytes[4], hash_bytes[5], hash_bytes[6], hash_bytes[7],
-            ]) as usize
-                % matching.len();
+            let idx =
+                u32::from_be_bytes([hash_bytes[4], hash_bytes[5], hash_bytes[6], hash_bytes[7]])
+                    as usize
+                    % matching.len();
             matching[idx]
         };
 
         // Check for shiny (1% chance)
-        let shiny_roll = u32::from_be_bytes([
-            hash_bytes[8], hash_bytes[9], hash_bytes[10], hash_bytes[11],
-        ]) % 100;
+        let shiny_roll =
+            u32::from_be_bytes([hash_bytes[8], hash_bytes[9], hash_bytes[10], hash_bytes[11]])
+                % 100;
         let is_shiny = shiny_roll == 0;
 
         // Derive stats from seed
@@ -114,7 +113,11 @@ impl Engine {
     }
 
     /// Generate a reaction for a completed task.
-    pub fn generate_reaction(state: &PetState, task: &TaskSummary, mode: ReactionMode) -> Option<Reaction> {
+    pub fn generate_reaction(
+        state: &PetState,
+        task: &TaskSummary,
+        mode: ReactionMode,
+    ) -> Option<Reaction> {
         reaction::generate_reaction(state, task, &mode)
     }
 

@@ -1,4 +1,4 @@
-use pet_engine::{xp_to_next_level, total_xp_for_level, Engine};
+use pet_engine::{total_xp_for_level, xp_to_next_level, Engine};
 
 #[test]
 fn test_xp_to_next_level_formula() {
@@ -33,7 +33,9 @@ fn test_award_xp_triggers_single_level_up() {
     state.xp = 140;
     let events = Engine::award_xp(&mut state, 20, "task_complete");
     assert_eq!(state.level, 2);
-    assert!(events.iter().any(|e| e.event_type == pet_engine::EventType::LevelUp));
+    assert!(events
+        .iter()
+        .any(|e| e.event_type == pet_engine::EventType::LevelUp));
 }
 
 #[test]
@@ -42,7 +44,10 @@ fn test_award_xp_multiple_level_ups() {
     state.level = 1;
     state.xp = 100;
     let events = Engine::award_xp(&mut state, 10000, "massive_task");
-    let level_ups = events.iter().filter(|e| e.event_type == pet_engine::EventType::LevelUp).count();
+    let level_ups = events
+        .iter()
+        .filter(|e| e.event_type == pet_engine::EventType::LevelUp)
+        .count();
     assert!(level_ups >= 1);
     assert!(state.level >= 2);
 }

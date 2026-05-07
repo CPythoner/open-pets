@@ -1,7 +1,7 @@
 use pet_engine::{Engine, ReactionMode, TaskSummary};
+use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::fs;
 
 fn main() {
     println!("🐾 Open-Pets: Terminal Companion 🐾\n");
@@ -14,9 +14,10 @@ fn main() {
     });
 
     println!("Species: {} ({:?})", pet.species_name, pet.rarity_tier);
-    println!("Stats: Debug {}, Patience {}, Chaos {}, Wisdom {}, Snark {}", 
-        pet.stats.debugging, pet.stats.patience, 
-        pet.stats.chaos, pet.stats.wisdom, pet.stats.snark);
+    println!(
+        "Stats: Debug {}, Patience {}, Chaos {}, Wisdom {}, Snark {}",
+        pet.stats.debugging, pet.stats.patience, pet.stats.chaos, pet.stats.wisdom, pet.stats.snark
+    );
     println!("Level: {} | Mood: {}\n", pet.level, pet.mood);
 
     println!("Commands: pet, status, sleep, exit\n");
@@ -25,7 +26,9 @@ fn main() {
     loop {
         let _ = io::stdout().flush();
         let mut input = String::new();
-        io::stdin().read_line(&mut input).expect("Failed to read input");
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read input");
         let input = input.trim().to_lowercase();
 
         match input.as_str() {
@@ -33,9 +36,9 @@ fn main() {
                 Engine::award_xp(&mut pet, 5, "petting");
                 Engine::update_mood(&mut pet, true, 0);
                 let reaction = Engine::generate_reaction(
-                    &pet, 
+                    &pet,
                     &TaskSummary::new("petting", true, 0),
-                    ReactionMode::Cheerleader
+                    ReactionMode::Cheerleader,
                 );
                 if let Some(r) = reaction {
                     println!("🐾 {}", r.text);
@@ -71,10 +74,13 @@ fn xp_to_next(level: u32) -> u32 {
 }
 
 fn pet_state_dir() -> PathBuf {
-    std::env::var("USERPROFILE")
+    std::env::var("OPEN_PETS_HOME")
         .map(PathBuf::from)
-        .unwrap_or_default()
-        .join(".open-pets")
+        .or_else(|_| std::env::var("HOME").map(|home| PathBuf::from(home).join(".open-pets")))
+        .or_else(|_| {
+            std::env::var("USERPROFILE").map(|home| PathBuf::from(home).join(".open-pets"))
+        })
+        .unwrap_or_else(|_| PathBuf::from(".open-pets"))
 }
 
 fn save_pet(pet: &pet_engine::PetState) {

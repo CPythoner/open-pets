@@ -1,7 +1,7 @@
 //! SQLite persistence for pet state and memories.
 //! Replaces JSON file storage with a proper database.
 
-use pet_engine::{PetState, MemoryStore, Memory, MemoryCategory};
+use pet_engine::{Memory, MemoryCategory, MemoryStore, PetState};
 use rusqlite::{params, Connection, Result as SqlResult};
 use std::path::PathBuf;
 
@@ -79,7 +79,7 @@ impl PetDb {
             CREATE TABLE IF NOT EXISTS pet_config (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
-            );"
+            );",
         )?;
         Ok(())
     }
@@ -123,7 +123,7 @@ impl PetDb {
                     level, xp, stat_debugging, stat_patience, stat_chaos,
                     stat_wisdom, stat_snark, mood, muted, last_interaction,
                     last_sleep, created_at
-             FROM pet_state WHERE id = 1"
+             FROM pet_state WHERE id = 1",
         )?;
 
         let result = stmt.query_row([], |row| {
@@ -144,8 +144,11 @@ impl PetDb {
                 level: row.get(5)?,
                 xp: row.get(6)?,
                 stats: pet_engine::PersonalityStats::new(
-                    row.get(7)?, row.get(8)?, row.get(9)?,
-                    row.get(10)?, row.get(11)?,
+                    row.get(7)?,
+                    row.get(8)?,
+                    row.get(9)?,
+                    row.get(10)?,
+                    row.get(11)?,
                 ),
                 mood: row.get(12)?,
                 muted: row.get::<_, i32>(13)? != 0,
@@ -163,6 +166,7 @@ impl PetDb {
     }
 
     /// Save memories to database.
+    #[allow(dead_code)]
     pub fn save_memories(&self, store: &MemoryStore) -> SqlResult<()> {
         // Clear and rewrite — simple approach for small memory sets
         self.conn.execute("DELETE FROM pet_memory", [])?;
@@ -191,41 +195,46 @@ impl PetDb {
     }
 
     /// Load memories from database.
+    #[allow(dead_code)]
     pub fn load_memories(&self) -> SqlResult<MemoryStore> {
         let mut store = MemoryStore::new();
         let mut stmt = self.conn.prepare(
-            "SELECT text, importance, consolidated, category, created_at
-             FROM pet_memory ORDER BY id"
+            "SELECT id, text, importance, consolidated, category, created_at
+             FROM pet_memory ORDER BY id",
         )?;
 
-        let memories: Vec<Memory> = stmt.query_map([], |row| {
-            let category_str: String = row.get(3)?;
-            let category = match category_str.as_str() {
-                "error_pattern" => MemoryCategory::ErrorPattern,
-                "user_habit" => MemoryCategory::UserHabit,
-                "code_observation" => MemoryCategory::CodeObservation,
-                "milestone" => MemoryCategory::Milestone,
-                "task" => MemoryCategory::Task,
-                _ => MemoryCategory::Interaction,
-            };
-            Ok(Memory {
-                id: 0, // Will be reassigned by store
-                text: row.get(0)?,
-                importance: row.get(1)?,
-                consolidated: row.get::<_, i32>(2)? != 0,
-                category,
-                created_at: row.get(4)?,
-            })
-        })?.filter_map(|m| m.ok()).collect();
+        let memories: SqlResult<Vec<Memory>> = stmt
+            .query_map([], |row| {
+                let id: u64 = row.get(0)?;
+                let category_str: String = row.get(4)?;
+                let category = match category_str.as_str() {
+                    "error_pattern" => MemoryCategory::ErrorPattern,
+                    "user_habit" => MemoryCategory::UserHabit,
+                    "code_observation" => MemoryCategory::CodeObservation,
+                    "milestone" => MemoryCategory::Milestone,
+                    "task" => MemoryCategory::Task,
+                    _ => MemoryCategory::Interaction,
+                };
+                Ok(Memory {
+                    id,
+                    text: row.get(1)?,
+                    importance: row.get(2)?,
+                    consolidated: row.get::<_, i32>(3)? != 0,
+                    category,
+                    created_at: row.get(5)?,
+                })
+            })?
+            .collect();
 
-        for mem in memories {
-            store.add(mem.text, mem.importance, mem.category);
+        for mem in memories? {
+            store.insert_existing(mem);
         }
 
         Ok(store)
     }
 
     /// Save a config key-value pair.
+    #[allow(dead_code)]
     pub fn save_config(&self, key: &str, value: &str) -> SqlResult<()> {
         self.conn.execute(
             "INSERT OR REPLACE INTO pet_config (key, value) VALUES (?1, ?2)",
@@ -235,10 +244,11 @@ impl PetDb {
     }
 
     /// Load a config value by key.
+    #[allow(dead_code)]
     pub fn load_config(&self, key: &str) -> SqlResult<Option<String>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT value FROM pet_config WHERE key = ?1"
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM pet_config WHERE key = ?1")?;
         let result = stmt.query_row(params![key], |row| row.get::<_, String>(0));
         match result {
             Ok(v) => Ok(Some(v)),
@@ -278,8 +288,9 @@ mod tests {
                 stat_debugging INTEGER, stat_patience INTEGER, stat_chaos INTEGER,
                 stat_wisdom INTEGER, stat_snark INTEGER, mood TEXT, muted INTEGER,
                 last_interaction INTEGER, last_sleep INTEGER, created_at INTEGER
-            )"
-        ).unwrap();
+            )",
+        )
+        .unwrap();
 
         // Insert
         conn.execute(
@@ -297,27 +308,60 @@ mod tests {
         ).unwrap();
 
         // Read back
-        let loaded_id: String = conn.query_row(
-            "SELECT species_id FROM pet_state WHERE id = 1", [],
-            |row| row.get(0)
-        ).unwrap();
+        let loaded_id: String = conn
+            .query_row("SELECT species_id FROM pet_state WHERE id = 1", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
         assert_eq!(loaded_id, pet.species_id);
     }
 
     #[test]
     fn test_config_persistence() {
         let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch("CREATE TABLE IF NOT EXISTS pet_config (key TEXT PRIMARY KEY, value TEXT)").unwrap();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS pet_config (key TEXT PRIMARY KEY, value TEXT)",
+        )
+        .unwrap();
 
         conn.execute(
             "INSERT OR REPLACE INTO pet_config (key, value) VALUES ('window_x', '100')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
-        let val: String = conn.query_row(
-            "SELECT value FROM pet_config WHERE key = 'window_x'", [],
-            |row| row.get(0)
-        ).unwrap();
+        let val: String = conn
+            .query_row(
+                "SELECT value FROM pet_config WHERE key = 'window_x'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
         assert_eq!(val, "100");
+    }
+
+    #[test]
+    fn test_memory_metadata_round_trip() {
+        let db = PetDb::open_in_memory().unwrap();
+        let mut store = MemoryStore::new();
+        store.insert_existing(Memory {
+            id: 42,
+            text: "important milestone".to_string(),
+            importance: 9,
+            consolidated: true,
+            category: MemoryCategory::Milestone,
+            created_at: 12345,
+        });
+
+        db.save_memories(&store).unwrap();
+        let loaded = db.load_memories().unwrap();
+        let memories = loaded.all();
+
+        assert_eq!(memories.len(), 1);
+        assert_eq!(memories[0].text, "important milestone");
+        assert_eq!(memories[0].importance, 9);
+        assert!(memories[0].consolidated);
+        assert_eq!(memories[0].category, MemoryCategory::Milestone);
+        assert_eq!(memories[0].created_at, 12345);
     }
 }
