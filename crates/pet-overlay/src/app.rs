@@ -1,6 +1,6 @@
 use iced::alignment::Horizontal;
 use iced::widget::{container, image, text};
-use iced::{Task, Element, Length};
+use iced::{Task, Element, Length, Background, Color};
 use pet_engine::{Engine, PetState};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -182,10 +182,14 @@ impl PetApp {
                         .width(Length::Shrink)
                         .height(Length::Shrink)
                 )
-                .width(Length::Fill)
-                .height(Length::Fill)
+                .width(Length::Shrink)
+                .height(Length::Shrink)
                 .center_x(Length::Fill)
                 .center_y(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(Color::TRANSPARENT)),
+                    ..Default::default()
+                })
                 .into();
             }
         }
@@ -209,11 +213,15 @@ impl PetApp {
             state.pet.mood
         );
 
-        container(text(text_content).size(14).align_x(Horizontal::Center))
-            .width(Length::Fill)
-            .height(Length::Fill)
+        container(text(text_content).size(12).align_x(Horizontal::Center))
+            .width(Length::Shrink)
+            .height(Length::Shrink)
             .center_x(Length::Fill)
             .center_y(Length::Fill)
+            .style(|_| container::Style {
+                background: Some(Background::Color(Color::TRANSPARENT)),
+                ..Default::default()
+            })
             .into()
     }
 
