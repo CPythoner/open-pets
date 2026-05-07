@@ -1,6 +1,7 @@
 //! Core pet engine logic for open-pets - pure functions, no I/O.
 
 mod event;
+mod memory;
 mod mood;
 mod reaction;
 mod species;
@@ -8,6 +9,7 @@ mod stats;
 mod xp;
 
 pub use event::{Event, EventType};
+pub use memory::{Memory, MemoryCategory, MemoryStore};
 pub use mood::{Mood, MoodState};
 pub use reaction::{
     generate_reaction, backseat_error_reaction, backseat_success_reaction,
