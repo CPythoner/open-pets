@@ -1,3 +1,8 @@
 [workspace]
-members = ["crates/pet-engine"]
+members = ["crates/pet-engine", "crates/pet-tui"]
 resolver = "2"
+
+
+
+
+
